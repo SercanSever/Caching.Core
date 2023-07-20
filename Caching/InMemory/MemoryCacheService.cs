@@ -15,17 +15,63 @@ namespace Caching.Core.InMemory.Concrete
          _memoryCache = memoryCache;
       }
 
-      public T Get(object key) => _memoryCache.Get<T>(key) ?? throw new Exception("The data you are looking for does not exists.");
+      public T Get(object key)
+      {
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
 
-      public async Task<T> GetOrCreate(object key, T value) => await _memoryCache.GetOrCreateAsync<T>(
-      key ?? throw new Exception("The key is not exists"),
-      entry => Task.FromResult(value) ?? throw new Exception("The value is not exists"))
-      ?? throw new Exception("The data could not be found or created...");
+         if (_memoryCache.TryGetValue<T>(key, out var value))
+            return value;
 
-      public void Remove(object key) => _memoryCache.Remove(key);
+         throw new Exception("The data you are looking for does not exist.");
+      }
 
-      public void Set(object key, T value, TimeSpan expirationTime) => _memoryCache.Set<T>(key, value, expirationTime);
+      public async Task<T> GetOrCreateAsync(object key, T value, TimeSpan slidingExpiration, DateTime absoluteExpiration)
+      {
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
 
-      public bool TryGetValue(object key, out T value) => (_memoryCache.TryGetValue(key, out value) && value != null);
+         if (value == null)
+            throw new ArgumentNullException(nameof(value), "The value is not exists");
+
+         return await _memoryCache.GetOrCreateAsync<T>(key, entry =>
+         {
+            entry.Value = value;
+            entry.SlidingExpiration = slidingExpiration;
+            entry.AbsoluteExpiration = absoluteExpiration;
+
+            return Task.FromResult(value);
+         }) ?? throw new Exception("The data could not be found or created...");
+      }
+
+      public void Remove(object key)
+      {
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
+
+         _memoryCache.Remove(key);
+      }
+
+      public void Set(object key, T value, TimeSpan slidingExpiration, DateTime absoluteExpiration)
+      {
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
+
+         var memoryCacheEntryOptions = new MemoryCacheEntryOptions
+         {
+            SlidingExpiration = slidingExpiration,
+            AbsoluteExpiration = absoluteExpiration
+         };
+
+         _memoryCache.Set<T>(key, value, memoryCacheEntryOptions);
+      }
+
+      public bool TryGetValue(object key, out T value)
+      {
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
+
+         return _memoryCache.TryGetValue(key, out value) && value != null;
+      }
    }
 }

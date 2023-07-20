@@ -18,8 +18,10 @@ namespace Caching.Core.DIResolvers
          services.AddMemoryCache();
          services.AddScoped<ICacheService<object>, MemoryCacheService<object>>();
          //REDIS
-         var multiplexer = ConnectionMultiplexer.Connect(configuration.GetConnectionString("Redis Connection String"));
-         services.AddSingleton<IConnectionMultiplexer>(multiplexer);
+         services.AddStackExchangeRedisCache(options =>
+         {
+            options.Configuration = "localhost:6379";
+         });
          return services;
       }
    }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Caching.Core.InMemory;
+using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
 using StackExchange.Redis;
 
@@ -10,43 +11,83 @@ namespace Caching.Core.Caching.Redis
 {
    public class RedisCacheService<T> : ICacheService<T>
    {
-      private readonly IConnectionMultiplexer _redisConnection;
-      private readonly IDatabase _cache;
-      private TimeSpan ExpireTime => TimeSpan.FromDays(1);
-      public RedisCacheService(IConnectionMultiplexer redisConnection, IDatabase cache)
+      private readonly IDistributedCache _distributedCache;
+
+      public RedisCacheService(IDistributedCache distributedCache)
       {
-         _redisConnection = redisConnection;
-         _cache = _redisConnection.GetDatabase();
-      }
-      public T Get(object key)
-      {
-         var value = _cache.StringGet(key.ToString());
-         return JsonConvert.DeserializeObject<T>(value);
+         _distributedCache = distributedCache;
       }
 
-      public async Task<T> GetOrCreate(object key, T value)
+      public T Get(object key)
       {
-         var result = _cache.StringGet(key.ToString());
-         if (string.IsNullOrEmpty(result))
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
+
+         var cachedValue = _distributedCache.GetString(key.ToString());
+
+         return JsonConvert.DeserializeObject<T>(cachedValue);
+      }
+
+      public async Task<T> GetOrCreateAsync(object key, T value, TimeSpan slidingExpiration, DateTime absoluteExpiration)
+      {
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
+
+         var cachedValue = await _distributedCache.GetStringAsync(key.ToString());
+
+         if (cachedValue != null)
          {
-            Set(key, JsonConvert.DeserializeObject<T>(value.ToString()), ExpireTime);
+            return JsonConvert.DeserializeObject<T>(cachedValue);
          }
-         return JsonConvert.DeserializeObject<T>(result);
+
+         var cacheEntryOptions = new DistributedCacheEntryOptions
+         {
+            AbsoluteExpiration = absoluteExpiration,
+            SlidingExpiration = slidingExpiration
+         };
+
+         await _distributedCache.SetStringAsync(key.ToString(), JsonConvert.SerializeObject(value), cacheEntryOptions);
+
+         return value;
       }
 
       public void Remove(object key)
       {
-         _cache.KeyDelete(key.ToString());
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
+
+         _distributedCache.Remove(key.ToString());
       }
 
-      public void Set(object key, T value, TimeSpan expirationTime)
+      public void Set(object key, T value, TimeSpan slidingExpiration, DateTime absoluteExpiration)
       {
-         _cache.StringSetAsync(key.ToString(), value.ToString(), ExpireTime);
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
+
+         var cacheEntryOptions = new DistributedCacheEntryOptions
+         {
+            AbsoluteExpiration = absoluteExpiration,
+            SlidingExpiration = slidingExpiration
+         };
+
+         _distributedCache.SetString(key.ToString(), JsonConvert.SerializeObject(value), cacheEntryOptions);
       }
 
       public bool TryGetValue(object key, out T value)
       {
-         throw new NotImplementedException();
+         if (key == null)
+            throw new ArgumentNullException(nameof(key), "The key is not exists");
+
+         var cachedValue = _distributedCache.GetString(key.ToString());
+
+         if (cachedValue != null)
+         {
+            value = JsonConvert.DeserializeObject<T>(cachedValue);
+            return true;
+         }
+
+         value = default(T);
+         return false;
       }
    }
 }
