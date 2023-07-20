@@ -4,16 +4,22 @@ using System.Linq;
 using System.Threading.Tasks;
 using Caching.Core.InMemory;
 using Caching.Core.InMemory.Concrete;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
 
 namespace Caching.Core.DIResolvers
 {
    public static class CacheCoreModule
    {
-      public static IServiceCollection ConfigureCaching(this IServiceCollection services)
+      public static IServiceCollection ConfigureCaching(this IServiceCollection services, IConfiguration configuration)
       {
+         //INMEMORY
          services.AddMemoryCache();
-         services.AddScoped<IMemoryCacheService<object>, MemoryCacheService<object>>();
+         services.AddScoped<ICacheService<object>, MemoryCacheService<object>>();
+         //REDIS
+         var multiplexer = ConnectionMultiplexer.Connect(configuration.GetConnectionString("Redis Connection String"));
+         services.AddSingleton<IConnectionMultiplexer>(multiplexer);
          return services;
       }
    }
