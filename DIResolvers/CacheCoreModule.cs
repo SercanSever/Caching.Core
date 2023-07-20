@@ -20,7 +20,7 @@ namespace Caching.Core.DIResolvers
          //REDIS
          services.AddStackExchangeRedisCache(options =>
          {
-            options.Configuration = "localhost:6379";
+            options.Configuration = "redis server URL";
          });
          return services;
       }
