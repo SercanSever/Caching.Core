@@ -6,7 +6,6 @@ using Caching.Core.InMemory;
 using Caching.Core.InMemory.Concrete;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using StackExchange.Redis;
 
 namespace Caching.Core.DIResolvers
 {
